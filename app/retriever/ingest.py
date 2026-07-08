@@ -7,6 +7,7 @@ Usage: python -m app.retriever.ingest [source_dir]
 from __future__ import annotations
 
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -17,6 +18,23 @@ from app.retriever.extract import parse_guidebook, parse_program_workbook
 from app.retriever.store import Store
 
 log = logging.getLogger(__name__)
+
+_NOISE_PATTERNS = [r"\(Z-Library\)", r"\(Jeff Nippard\)", r"\(Nippard,\s*Jeff\)",
+                   r"_compressed\b"]
+
+
+def program_name_from_filename(pdf: Path) -> str:
+    """Derive a real per-file program name — pdfs/ holds many different
+    programs (Nippard's and others), not just one, so every PDF must get its
+    own label rather than a single shared constant."""
+    name = pdf.stem
+    for pat in _NOISE_PATTERNS:
+        name = re.sub(pat, "", name, flags=re.IGNORECASE)
+    name = re.sub(r"[_\-]+", " ", name)
+    stripped = name.strip()
+    if " " not in stripped and stripped != stripped.lower() and stripped != stripped.upper():
+        name = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", name)  # camelCase filename
+    return re.sub(r"\s+", " ", name).strip()
 
 
 def ingest(source_dir: Path) -> dict[str, int]:
@@ -42,9 +60,9 @@ def ingest(source_dir: Path) -> dict[str, int]:
         except Exception:
             log.exception("Skipping malformed PDF %s", pdf.name)
             continue
-        # The guidebook applies to the whole system; tag with a neutral program name.
-        chunks += chunking.chunk_guide(sections, "Bodybuilding Transformation System", pdf.stem)
-        log.info("%s: %d sections", pdf.name, len(sections))
+        program = program_name_from_filename(pdf)
+        chunks += chunking.chunk_guide(sections, program, pdf.stem)
+        log.info("%s: %d sections (program=%r)", pdf.name, len(sections), program)
 
     if not chunks:
         log.error("No chunks produced from %s", source_dir)

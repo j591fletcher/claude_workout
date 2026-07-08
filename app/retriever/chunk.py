@@ -96,11 +96,14 @@ def chunk_program(rows: list[ProgramRow]) -> list[Chunk]:
 
 
 def chunk_guide(sections: list[GuideSection], program: str, source_name: str) -> list[Chunk]:
+    """Section titles aren't guaranteed unique within a file — scanned guidebooks
+    repeat generic headings (e.g. "Week") across many pages — so the chunk id
+    includes each section's position in the document, not just its title."""
     chunks = []
-    for sec in sections:
+    for sec_idx, sec in enumerate(sections):
         for i, piece in enumerate(_split(sec.text)):
             chunks.append(Chunk(
-                id=_cid("guide", source_name, sec.title, i),
+                id=_cid("guide", source_name, sec_idx, sec.title, i),
                 text=f"{program} guidebook — {sec.title}:\n{piece}",
                 metadata={"chunk_type": "guide_section", "program": program,
                           "section": sec.title, "page": sec.first_page},

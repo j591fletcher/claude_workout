@@ -15,9 +15,13 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     hevy_api_key: str = ""
 
-    # LLM
+    # LLM — "ollama" (local, free, needs the GPU host reachable over Tailscale)
+    # or "anthropic" (hosted, billed). Ollama is the default to avoid API cost.
+    llm_backend: str = "ollama"
     anthropic_model: str = "claude-opus-4-8"
     max_tokens: int = 4096
+    ollama_base_url: str = ""  # e.g. http://100.85.238.56:11434 (tailnet IP of the GPU box)
+    ollama_model: str = "qwen2.5:14b"
 
     # Retriever (Module B)
     embedding_backend: str = "sentence-transformers"  # or "hashing" (offline fallback)
@@ -25,6 +29,11 @@ class Settings(BaseSettings):
     chroma_dir: Path = REPO_ROOT / "data" / "chroma"
     pdf_dir: Path = REPO_ROOT / "pdfs"
     top_k: int = 8
+    # Cosine distance cutoff (all-MiniLM-L6-v2): single-topic matches cluster
+    # ~0.27-0.34, but compound/multi-topic questions can pull unrelated chunks
+    # into that same range — see Phase 4 live-verify notes in HANDOFF.md. 0.35
+    # trades recall for precision: better to say "not found" than hallucinate.
+    retrieval_max_distance: float = 0.35
 
     # Hevy (Module C)
     hevy_base_url: str = "https://api.hevyapp.com"

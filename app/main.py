@@ -11,6 +11,7 @@ from app.contract import Exercise
 from app.hevy import service as hevy
 from app.hevy.client import HevyError
 from app.retriever.query import Retriever
+from app.trainer.service import Trainer
 
 app = FastAPI(title="Workout App", docs_url="/docs")
 
@@ -18,6 +19,17 @@ app = FastAPI(title="Workout App", docs_url="/docs")
 @lru_cache
 def _retriever() -> Retriever:
     return Retriever()  # lazy singleton: loads embedder + Chroma on first use
+
+
+@lru_cache
+def _trainer() -> Trainer:
+    return Trainer(retriever=_retriever())  # shares the retriever singleton
+
+
+def _metadata_where(program: str | None, week: int | None, day: str | None) -> dict | None:
+    clauses = [{k: {"$eq": v}} for k, v in
+               (("program", program), ("week", week), ("day", day)) if v is not None]
+    return clauses[0] if len(clauses) == 1 else ({"$and": clauses} if clauses else None)
 
 
 @app.get("/health")
@@ -40,13 +52,29 @@ class AskResponse(BaseModel):
 
 @app.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest) -> AskResponse:
-    clauses = [{k: {"$eq": v}} for k, v in
-               (("program", req.program), ("week", req.week), ("day", req.day))
-               if v is not None]
-    where = clauses[0] if len(clauses) == 1 else ({"$and": clauses} if clauses else None)
+    where = _metadata_where(req.program, req.week, req.day)
     result = _retriever().ask(req.question, where)
     return AskResponse(answer=result.answer, sources=result.sources,
                        exercises=result.exercises)
+
+
+class ChatRequest(BaseModel):
+    message: str
+    program: str | None = None
+    week: int | None = None
+    day: str | None = None
+
+
+class ChatResponse(BaseModel):
+    answer: str
+    sources: list[dict]
+
+
+@app.post("/chat", response_model=ChatResponse)
+def chat(req: ChatRequest) -> ChatResponse:
+    where = _metadata_where(req.program, req.week, req.day)
+    result = _trainer().chat(req.message, where)
+    return ChatResponse(answer=result.answer, sources=result.sources)
 
 
 @app.exception_handler(HevyError)

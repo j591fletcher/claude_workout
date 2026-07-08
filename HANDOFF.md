@@ -15,7 +15,8 @@ this file will.
 | 2. Module B retriever (ingest + `/ask`) | ✅ done | `Add ingestion…`, `Add /ask endpoint…` |
 | Checkpoint 2: live Hevy schema | ✅ approved 2026-07-08 | (probe run locally against real API) |
 | 3. Module C Hevy normalization + summaries | ✅ done | `Add Hevy normalization, working weights, and summaries` |
-| 4. Module A trainer wiring (`/chat`) | ⬜ **do this next** | |
+| 4. Module A trainer wiring (`/chat`) | ✅ done 2026-07-08 | `Wire trainer /chat with local Ollama and grounding guardrails` |
+| 5. Deploy polish (Unraid + Tailscale) | ⬜ **do this next** | |
 
 **Checkpoint 2 findings (confirmed live):** exercise field is `title` (not
 `name`), workout date lives in `start_time` (not `date`), weights are
@@ -95,37 +96,81 @@ curl -X POST localhost:8000/ask -H 'content-type: application/json' `
 Without `ANTHROPIC_API_KEY` set, this returns retrieved program data only (no
 generated coaching text) — that's expected, not a bug.
 
-## ▶ NEXT STEP — Checkpoint 2
+## Module A — the LLM runs locally, not on Anthropic
 
-Confirm the real Hevy schema before building normalization. This needs only
-`HEVY_API_KEY`, not the Anthropic one:
+Cost was the deciding factor: `LLM_BACKEND=ollama` in `.env` is the default,
+pointing at a gaming PC's GPU over Tailscale (`OLLAMA_BASE_URL`, model
+`qwen2.5:14b`, ~9GB at Q4_K_M). `app/llm.py` is a swappable `LLMClient`
+interface (same pattern as `app/retriever/embed.py`'s `Embedder`) — both
+`Retriever.ask()` and `Trainer.chat()` go through `get_llm_client(settings)`,
+so switching back to `LLM_BACKEND=anthropic` later is a one-line `.env` change,
+no code change. If the Ollama host is off, both fall back to retrieved-data-only
+answers instead of erroring (`LLMUnavailable`).
+
+**Gotchas if you reconnect the GPU host:** Ollama binds to `127.0.0.1` only by
+default — needs `OLLAMA_HOST=0.0.0.0:<port>` set on the gaming PC (then restart
+the Ollama app) to be reachable over Tailscale, and a Windows Firewall inbound
+rule for that port (Tailscale's adapter often lands under the "Public" profile).
+
+## Known limitation: local model grounding reliability
+
+Live-tested 2026-07-08 with real retrieval + real Hevy data. Two real problems
+surfaced and got fixed at the code level (not just prompt wording):
+
+1. **Ingestion bug** — `ingest.py` used to hardcode every PDF's `program` field
+   to `"Bodybuilding Transformation System"` regardless of which file it came
+   from, so prose from actual Nippard PDFs (e.g. Fundamentals Hypertrophy) was
+   mislabeled. Fixed: `program_name_from_filename()` derives a real per-file
+   name. **Re-run ingest after pulling this** (`data/chroma` was rebuilt
+   locally; if you're starting fresh elsewhere, just run ingest once).
+2. **qwen2.5:14b still occasionally names "Nippard" or a specific real program
+   with zero supporting retrieved excerpt**, even after (a) filtering out
+   retrieved chunks with cosine distance > 0.35 (`retrieval_max_distance` in
+   `config.py`) and (b) an explicit prompt rule not to trust the user's own
+   wording over the excerpt's actual program name. Tightening prompts and
+   retrieval narrowed it but didn't eliminate it — a 14B local model just isn't
+   fully reliable on this instruction.
+
+   **Mitigation, not a fix:** `flag_ungrounded_programs()` in
+   `app/retriever/query.py` runs after every LLM answer and appends a visible
+   "⚠️ Grounding check" warning if the answer names a known-ingested program
+   that wasn't among its own retrieved sources, or says "Nippard" at all (that
+   word is stripped from every program name at ingest time, so its presence in
+   an answer is always provably ungrounded). This makes the failure *visible*
+   instead of silent — it doesn't make the model stop doing it. Simple,
+   well-grounded factual questions (exact sets/reps/RPE lookups) tested clean
+   with no false warnings; the risk is concentrated in compound/technique
+   questions with weak retrieval matches.
+
+   If this warning shows up often in real use, the next lever is a bigger/better
+   local model (VRAM permitting) or switching that specific call path to
+   `LLM_BACKEND=anthropic`.
+
+## Known minor inefficiency: duplicate PDFs re-ingested separately
+
+Two pairs of files in `pdfs/` are literal duplicates under near-identical
+names (`The Muscle Ladder Get Jacked Using Science...` with/without
+`(Z-Library)`; `..._Beginner.pdf` vs `..._Beginner_compressed.pdf`). Both
+copies get fully ingested and collapse to the same `program` label, so it's
+not a correctness bug — just wasted embeddings/storage. Not fixed; dedupe by
+content hash in `ingest.py` if it's worth the effort later.
+
+## Verify Phase 4 locally
 
 ```powershell
-# HEVY_API_KEY is read from .env
-python scripts\hevy_schema_probe.py
+python -m app.retriever.ingest pdfs\    # only needed if data/chroma doesn't exist yet
+uvicorn app.main:app --port 8000
 ```
-
-It prints field names/types for one workout + one routine. Compare against the
-documented schema in the plan (workout sets: `weight_kg`, `reps`, `rpe`, set
-`type`; routines: `rep_range {start,end}`, `rest_seconds`). If it matches,
-Phase 3 can proceed as designed; if a field name differs, note it — only
-`app/hevy/normalize.py` (not yet written) depends on it.
-
-**Paste the probe output back into a Claude Code session pointed at this repo**
-to continue — either resume in a fresh chat here, or start a session locally
-with this repo open.
-
-## Then Phase 3 + 4 (not yet built)
-
-- `app/hevy/normalize.py`: Hevy JSON → Data Contract (`source="hevy"`, kg→lb at
-  `lb = kg * 2.2046226218` rounded to 0.5, warmup sets excluded); working weight
-  = max non-warmup weight per exercise across Push/Pull/New Abs/Upper Mix/Legs.
-- `app/hevy/summaries.py`: per-routine / per-workout summaries in the trainer
-  log format.
-- `/hevy/working-weights`, `/hevy/summary/*` endpoints; unit tests for kg→lb and
-  working-weight derivation.
-- `app/trainer/service.py` + `/chat`: load `prompts/trainer.md`, compose Module
-  B + C context as Data Contract records, call Claude, keep §2 labels.
+Then, in another shell:
+```powershell
+curl -X POST localhost:8000/chat -H "content-type: application/json" `
+  -d '{\"message\":\"Summarize each of my five routines back to me.\"}'
+```
+Should list Push/Pull/New abs/Upper Mix/Legs with real exercise names pulled
+live from Hevy. Progression questions against a real working weight (e.g.
+"When should I add weight to Bench Press at 175 lb, 4x6-7?") should apply the
++5lb-upper/+10lb-lower/2-consecutive-sessions rule correctly from
+`prompts/trainer.md` — that part is reliable even on the local model.
 
 ## Git state
 
