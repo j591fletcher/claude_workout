@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     max_tokens: int = 4096
 
     # Retriever (Module B)
+    embedding_backend: str = "sentence-transformers"  # or "hashing" (offline fallback)
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     chroma_dir: Path = REPO_ROOT / "data" / "chroma"
     pdf_dir: Path = REPO_ROOT / "pdfs"
