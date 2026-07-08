@@ -13,9 +13,21 @@ this file will.
 | 1. Scaffold + constitution + Docker | ✅ done | `Scaffold repo, Docker, and secrets wiring` |
 | Checkpoint 1: PDF/xlsx extraction proof | ✅ approved | (inspection only) |
 | 2. Module B retriever (ingest + `/ask`) | ✅ done | `Add ingestion…`, `Add /ask endpoint…` |
-| Checkpoint 2: live Hevy schema | ⏸ **do this next, locally** | `Add read-only Hevy client and schema probe` |
-| 3. Module C Hevy normalization + summaries | ⬜ not started | |
-| 4. Module A trainer wiring (`/chat`) | ⬜ not started | |
+| Checkpoint 2: live Hevy schema | ✅ approved 2026-07-08 | (probe run locally against real API) |
+| 3. Module C Hevy normalization + summaries | ✅ done | `Add Hevy normalization, working weights, and summaries` |
+| 4. Module A trainer wiring (`/chat`) | ⬜ **do this next** | |
+
+**Checkpoint 2 findings (confirmed live):** exercise field is `title` (not
+`name`), workout date lives in `start_time` (not `date`), weights are
+`weight_kg` only. `app/hevy/normalize.py` maps these directly — see its
+docstring. One live-data surprise: `weight_kg: 0` shows up for a few bodyweight
+sets instead of `null` — treated as bodyweight (no working weight), not a
+0 lb entry.
+
+**Known gap for Module A:** none of the user's 318 logged workouts have RPE
+recorded in Hevy (`rpe` is always `null`). The user is starting to log RPE in
+Hevy going forward — Module A doesn't need special handling for the gap, just
+expect `rpe: "-"` on older entries.
 
 `docs/BUILD_PROMPT.md` has the original master prompt (moved there from
 `CLAUDE.md`, which is now the short constitution). That's the source of truth

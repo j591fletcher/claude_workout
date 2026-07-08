@@ -3,10 +3,13 @@
 
 from functools import lru_cache
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.contract import Exercise
+from app.hevy import service as hevy
+from app.hevy.client import HevyError
 from app.retriever.query import Retriever
 
 app = FastAPI(title="Workout App", docs_url="/docs")
@@ -44,3 +47,26 @@ def ask(req: AskRequest) -> AskResponse:
     result = _retriever().ask(req.question, where)
     return AskResponse(answer=result.answer, sources=result.sources,
                        exercises=result.exercises)
+
+
+@app.exception_handler(HevyError)
+def _hevy_error(_, exc: HevyError):
+    return JSONResponse(status_code=502, content={"detail": str(exc)})
+
+
+@app.get("/hevy/working-weights", response_model=list[Exercise])
+def hevy_working_weights() -> list[Exercise]:
+    """Current working weight per exercise (max logged weight — NOT a 1RM)."""
+    return hevy.working_weights()
+
+
+@app.get("/hevy/summary/routines")
+def hevy_routine_summaries() -> dict[str, list[str]]:
+    """The five tracked routines as verifiable text summaries."""
+    return {"routines": hevy.routine_summaries()}
+
+
+@app.get("/hevy/summary/workouts")
+def hevy_workout_summaries(limit: int = Query(default=5, ge=1, le=50)) -> dict[str, list[str]]:
+    """Most recent logged sessions in the trainer's LIFT LOG format."""
+    return {"workouts": hevy.recent_workout_summaries(limit)}

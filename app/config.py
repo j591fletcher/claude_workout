@@ -28,7 +28,12 @@ class Settings(BaseSettings):
 
     # Hevy (Module C)
     hevy_base_url: str = "https://api.hevyapp.com"
-    hevy_routines: tuple[str, ...] = ("Push", "Pull", "New Abs", "Upper Mix", "Legs")
+    # Exact titles as they appear in Hevy (confirmed at Checkpoint 2, 2026-07-08);
+    # matching is case-insensitive.
+    hevy_routines: tuple[str, ...] = (
+        "Push", "Pull", "New abs", "Upper Mix",
+        "Legs (Quads, Hamstrings, Glutes, Calves)",
+    )
 
     # Server — bind stays on localhost/tailnet (CLAUDE.md §1)
     host: str = "127.0.0.1"
