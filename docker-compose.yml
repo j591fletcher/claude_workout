@@ -9,6 +9,12 @@ services:
     ports:
       - "${BIND_IP:-127.0.0.1}:${PORT:-8000}:8000"
     volumes:
-      - ./data:/app/data   # Chroma vector store (persisted)
-      - ./pdfs:/app/pdfs   # Nippard PDFs (read at ingest time)
+      - ./data:/app/data       # Chroma vector store (persisted)
+      - ./pdfs:/app/pdfs:ro    # program PDFs/xlsx, read-only (only read at ingest time)
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s   # first start may be doing a full PDF ingest
