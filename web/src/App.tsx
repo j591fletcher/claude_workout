@@ -18,7 +18,7 @@ function App() {
   return (
     <div className="app-shell">
       <main className="app-main">
-        {tab === "home" && <Home />}
+        {tab === "home" && <Home onGoToHistory={() => setTab("history")} />}
         {tab === "history" && <History onSelectExercise={goToExercise} />}
         {tab === "progress" && (
           <Progress preselected={exerciseToShow} onConsumePreselect={() => setExerciseToShow(null)} />

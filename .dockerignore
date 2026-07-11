@@ -13,3 +13,5 @@ docs
 .env.*
 !.env.example
 HANDOFF.md
+web/node_modules
+web/dist

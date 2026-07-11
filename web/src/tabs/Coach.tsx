@@ -1,3 +1,5 @@
+import { ChatThread } from "../components/ChatThread";
+
 export function Coach() {
-  return <div>Coach — coming next</div>;
+  return <ChatThread />;
 }
