@@ -1,4 +1,4 @@
-export type TabId = "home" | "history" | "progress" | "routines" | "coach";
+export type TabId = "home" | "progress" | "routines" | "coach";
 
 interface Tab {
   id: TabId;
@@ -8,7 +8,6 @@ interface Tab {
 
 const TABS: Tab[] = [
   { id: "home", label: "Home", icon: "🏠" },
-  { id: "history", label: "History", icon: "📅" },
   { id: "progress", label: "Progress", icon: "📈" },
   { id: "routines", label: "Routines", icon: "📋" },
   { id: "coach", label: "Coach", icon: "💬" },
