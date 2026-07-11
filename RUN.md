@@ -41,10 +41,61 @@ curl -X POST http://<unraid-tailnet-ip>:8000/ask -H "content-type: application/j
 curl -X POST http://<unraid-tailnet-ip>:8000/chat -H "content-type: application/json" \
   -d '{"message":"Summarize each of my five routines back to me."}'
 # should list Push/Pull/New abs/Upper Mix/Legs with real exercise names
+
+curl http://<unraid-tailnet-ip>:8000/hevy/stats
+# dashboard stats: total_workouts, this_week, streak_weeks, recent_prs
+
+curl http://<unraid-tailnet-ip>:8000/hevy/exercises
+# every exercise ever logged, most-trained first
+
+curl "http://<unraid-tailnet-ip>:8000/hevy/exercise-history?name=Bench%20Press%20(Barbell)"
+# per-session progression series, oldest first — 404 if the name was never logged
+
+curl "http://<unraid-tailnet-ip>:8000/hevy/workouts?limit=5"
+# paginated structured workout feed (limit/offset)
+
+curl http://<unraid-tailnet-ip>:8000/hevy/routines/full
+# the five tracked routines as structured Exercise rows
 ```
 
 `docker compose ps` should show the container `healthy` after ~60s (the
 healthcheck's `start_period` accounts for a possible first-boot ingest).
+
+## Web UI (mobile PWA)
+
+The container also serves a React frontend at `/` — the API routes above are
+unaffected (they're registered before the static mount in `app/main.py`, so
+they always win). Open `http://<unraid-tailnet-ip>:8000/` in a browser to
+confirm the 5 tabs (Home, History, Progress, Routines, Coach) load and show
+real data before bothering with HTTPS/install below.
+
+### HTTPS via Tailscale Serve (required for the PWA install + service worker)
+
+A service worker and a clean "Add to Home Screen" install both require a
+secure context — plain `http://<tailnet-ip>:8000` won't offer either on
+iPhone. Tailscale Serve gives the box a trusted `https://` URL on the tailnet
+without touching `BIND_IP` (Serve proxies from `127.0.0.1`, so the container
+keeps binding to localhost only, per CLAUDE.md §1):
+
+```bash
+tailscale serve --bg https / http://127.0.0.1:8000
+tailscale serve status   # confirm it's proxying and shows the https:// URL
+```
+
+This exposes the app at `https://<box-name>.<your-tailnet>.ts.net` — reachable
+only over the tailnet, never the public internet. To stop it:
+`tailscale serve --https=443 off`.
+
+### Install to an iPhone home screen
+
+1. On the iPhone (joined to the same tailnet), open Safari and go to
+   `https://<box-name>.<your-tailnet>.ts.net`.
+2. Tap the Share icon, then **Add to Home Screen**.
+3. Launch it from the home screen icon — it opens standalone (no Safari
+   chrome), and works exactly like the browser tab since it just points at
+   the same tailnet URL. No further updates needed on the phone: the service
+   worker only caches the app shell, so every tab always fetches live data
+   from `/hevy`, `/ask`, and `/chat` on load — nothing goes stale.
 
 ## Logs / troubleshooting
 
