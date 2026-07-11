@@ -1,4 +1,5 @@
 import type { WorkoutFeedItem } from "../api";
+import { MuscleBadge } from "./MuscleBadge";
 
 function weightLabel(weight: number | null): string {
   return weight === null ? "bodyweight" : `${weight} lb`;
@@ -20,9 +21,12 @@ export function WorkoutCard({ workout, onSelectExercise }: WorkoutCardProps) {
       </div>
       {workout.exercises.map((e) => (
         <div key={e.exercise} className="exercise-row">
-          <button className="link-button" onClick={() => onSelectExercise(e.exercise)}>
-            {e.exercise}
-          </button>
+          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <MuscleBadge muscleGroup={e.muscle_group} />
+            <button className="link-button" onClick={() => onSelectExercise(e.exercise)}>
+              {e.exercise}
+            </button>
+          </span>
           <span>
             {e.sets}x{e.reps} | {weightLabel(e.weight)} | RPE {e.rpe}
           </span>

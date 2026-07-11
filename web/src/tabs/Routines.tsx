@@ -15,7 +15,7 @@ export function Routines() {
   if (!routines) return <LoadingSkeleton lines={5} />;
 
   return (
-    <div className="workout-list">
+    <div className="routine-list">
       {routines.map((r) => (
         <RoutineCard key={r.title} routine={r} />
       ))}

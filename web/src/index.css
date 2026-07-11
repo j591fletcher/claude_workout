@@ -554,3 +554,133 @@ h1, h2, h3 {
   color: var(--text-dim);
   font-size: 18px;
 }
+
+/* Muscle-group badges — Hevy has per-exercise illustrations; the Hevy API
+   exposes no images, so this is a contrast-checked color stand-in grouped
+   from primary_muscle_group. Colors validated against --bg / --bg-elevated
+   the same way as the source badges (see contrast notes at the top of this
+   file); "Other" reuses --text-dim rather than adding an unvalidated hue. */
+.muscle-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid;
+  flex-shrink: 0;
+}
+
+.muscle-badge--chest {
+  color: var(--badge-nippard);
+  border-color: #2f7a74;
+  background: rgba(95, 208, 200, 0.14);
+}
+
+.muscle-badge--back {
+  color: #8f9dfa;
+  border-color: #454f9e;
+  background: rgba(143, 157, 250, 0.14);
+}
+
+.muscle-badge--shoulders {
+  color: #e8b84b;
+  border-color: #8a6a1f;
+  background: rgba(232, 184, 75, 0.14);
+}
+
+.muscle-badge--arms {
+  color: #ef9bc0;
+  border-color: #9a4d70;
+  background: rgba(239, 155, 192, 0.14);
+}
+
+.muscle-badge--legs {
+  color: var(--badge-hevy);
+  border-color: #3a7a52;
+  background: rgba(60, 160, 100, 0.14);
+}
+
+.muscle-badge--core {
+  color: var(--badge-coaching);
+  border-color: #6a4a9a;
+  background: rgba(140, 90, 200, 0.14);
+}
+
+.muscle-badge--other {
+  color: var(--text-dim);
+  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.routine-card__exercise {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.routine-card__exercise:last-child {
+  border-bottom: none;
+}
+
+.routine-card__exercise-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.routine-card__exercise-name {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.routine-card__notes {
+  color: var(--text-dim);
+  font-size: 12px;
+  margin: 4px 0 8px 38px;
+}
+
+.set-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-left: 38px;
+  width: calc(100% - 38px);
+}
+
+.set-table th {
+  text-align: left;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 4px 8px;
+  font-weight: 500;
+}
+
+.set-table td {
+  padding: 8px;
+  font-size: 13px;
+  min-height: 36px;
+}
+
+.set-table tbody tr:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.routine-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.routine-card--stale {
+  opacity: 0.55;
+}
+
+.routine-card__subtitle {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 400;
+}
