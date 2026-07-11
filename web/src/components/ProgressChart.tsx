@@ -12,10 +12,12 @@ import {
 import type { ExerciseHistoryPoint } from "../api";
 
 // Validated via dataviz skill's palette validator (lightness band + contrast)
-// against both the dark (#1c1c1e) and light (#ffffff) surfaces — literal hex
-// so it renders identically inside recharts' SVG attributes (unlike CSS vars,
-// which SVG presentation attributes don't reliably resolve).
-const CHART_COLOR = "#e8672a";
+// against the dark surface (--bg-elevated, #1c1c1e) — literal hex so it
+// renders identically inside recharts' SVG attributes (unlike CSS vars,
+// which SVG presentation attributes don't reliably resolve). Matches
+// --chart-mark in index.css; kept separate from --accent because accent is
+// tuned for text contrast, not the mark lightness band data needs.
+const CHART_COLOR = "#3987e5";
 
 interface ProgressChartProps {
   points: ExerciseHistoryPoint[];

@@ -1,3 +1,17 @@
+/* Palette validated with a WCAG relative-luminance contrast script
+   (scratchpad/contrast.mjs) and, for chart marks, the dataviz skill's
+   scripts/validate_palette.js against --bg-elevated. Results (dark mode):
+     text on bg                     16.73:1
+     text-dim on bg / bg-elevated    6.68:1 / 6.06:1
+     accent on bg / bg-elevated      8.97:1 / 8.15:1
+     dark text (#0d1526) on accent   8.72:1  (chat bubble / active segment)
+     chart-mark (#3987e5) on bg-elevated — passes dataviz lightness band
+       (accent #8ab4ff is too light for a data mark; kept for UI/text only)
+     source-badge nippard (#5fd0c8) on bg 10.12:1 — teal, distinct from accent
+     source-badge hevy (#7fd99a) on bg     10.97:1
+     source-badge coaching (#c9a2ff) on bg  9.01:1
+     warning-text on warning-bg             7.67:1
+   Light mode accent (#1c5cab) on white/light-bg: 6.63:1 / 6.09:1. */
 :root {
   color-scheme: dark;
   --bg: #121212;
@@ -5,7 +19,12 @@
   --border: #2c2c2e;
   --text: #f2f2f2;
   --text-dim: #9a9a9d;
-  --accent: #ff7a3d;
+  --accent: #8ab4ff;
+  --accent-ink: #0d1526; /* text drawn on top of --accent fills */
+  --chart-mark: #3987e5; /* data marks only — mid-lightness, not the UI accent */
+  --badge-nippard: #5fd0c8;
+  --badge-hevy: #7fd99a;
+  --badge-coaching: #c9a2ff;
   --warning-bg: #3a2a12;
   --warning-border: #7a4a1a;
   --warning-text: #ffb066;
@@ -27,6 +46,9 @@
     --border: #e0e0e2;
     --text: #1c1c1e;
     --text-dim: #6b6b6f;
+    --accent: #1c5cab;
+    --accent-ink: #ffffff;
+    --chart-mark: #1c5cab;
     --warning-bg: #fff3e0;
     --warning-border: #ffcc80;
     --warning-text: #a05a00;
@@ -276,19 +298,19 @@ h1, h2, h3 {
 }
 
 .source-badge--nippard {
-  color: #7fb3ff;
-  border-color: #3a5a8a;
-  background: rgba(70, 120, 200, 0.12);
+  color: var(--badge-nippard);
+  border-color: #2f7a74;
+  background: rgba(95, 208, 200, 0.12);
 }
 
 .source-badge--hevy {
-  color: #7fd99a;
+  color: var(--badge-hevy);
   border-color: #3a7a52;
   background: rgba(60, 160, 100, 0.12);
 }
 
 .source-badge--coaching {
-  color: #c9a2ff;
+  color: var(--badge-coaching);
   border-color: #6a4a9a;
   background: rgba(140, 90, 200, 0.12);
 }
@@ -319,7 +341,7 @@ h1, h2, h3 {
 .chat-bubble--user {
   align-self: flex-end;
   background: var(--accent);
-  color: #1a1006;
+  color: var(--accent-ink);
 }
 
 .chat-bubble--assistant {
@@ -356,7 +378,7 @@ h1, h2, h3 {
 
 .segmented-control__option--active {
   background: var(--accent);
-  color: #1a1006;
+  color: var(--accent-ink);
   font-weight: 600;
 }
 
