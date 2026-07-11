@@ -9,3 +9,5 @@ __pycache__/
 .claude/settings.local.json
 *.egg-info/
 *.log
+web/node_modules/
+web/dist/
