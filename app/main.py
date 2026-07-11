@@ -130,6 +130,21 @@ def hevy_stats() -> insights.DashboardStats:
     return insights.dashboard_stats()
 
 
+@app.get("/hevy/calendar", response_model=list[insights.CalendarDay])
+def hevy_calendar() -> list[insights.CalendarDay]:
+    """One entry per logged workout across all history — powers the Home calendar."""
+    return insights.calendar_days()
+
+
+@app.get("/hevy/workouts/by-date", response_model=list[insights.WorkoutFeedItem])
+def hevy_workouts_by_date(date: str) -> list[insights.WorkoutFeedItem]:
+    """Full workout detail(s) for an exact YYYY-MM-DD date."""
+    workouts = insights.workouts_on(date)
+    if workouts is None:
+        raise HTTPException(status_code=404, detail=f"No workout logged on {date!r}")
+    return workouts
+
+
 @app.get("/hevy/routines/full", response_model=list[insights.RoutineFull])
 def hevy_routines_full() -> list[insights.RoutineFull]:
     """The five tracked routines as structured Exercise rows."""

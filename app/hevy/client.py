@@ -95,3 +95,12 @@ class HevyClient:
             if page >= data.get("page_count", page):
                 return
             page += 1
+
+    def iter_exercise_templates(self, page_size: int = 100):
+        page = 1
+        while True:
+            data = self.get_exercise_templates(page=page, page_size=page_size)
+            yield from data.get("exercise_templates", [])
+            if page >= data.get("page_count", page):
+                return
+            page += 1

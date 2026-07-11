@@ -3,9 +3,18 @@ builders from test_hevy.py, which mirror the confirmed live Hevy schema."""
 
 import datetime as dt
 
+import pytest
+
 from app.hevy import insights
 from app.hevy.normalize import kg_to_lb
 from tests.test_hevy import _set, _workout
+
+
+@pytest.fixture(autouse=True)
+def _no_real_hevy_template_fetch(monkeypatch):
+    # _with_muscle_meta() calls service.exercise_template_by_title(), which
+    # would otherwise hit the real Hevy API on first use in any test here.
+    monkeypatch.setattr(insights.service, "exercise_template_by_title", lambda: {})
 
 
 class TestStreakWeeks:
@@ -164,6 +173,58 @@ class TestDashboardStats:
         assert stats.recent_prs == []
 
 
+class TestCalendarDays:
+    def test_one_entry_per_workout_with_tracked_flag(self, monkeypatch):
+        workouts = [
+            _workout("Push", "2026-07-10", []),
+            _workout("Old Untracked Routine", "2026-05-01", []),
+        ]
+        monkeypatch.setattr(insights.service, "all_workouts", lambda: workouts)
+        days = insights.calendar_days()
+        assert [(d.date, d.title, d.tracked) for d in days] == [
+            ("2026-07-10", "Push", True),
+            ("2026-05-01", "Old Untracked Routine", False),
+        ]
+
+
+class TestWorkoutsOn:
+    def test_returns_all_workouts_on_that_date(self, monkeypatch):
+        workouts = [
+            _workout("Push", "2026-07-10", [("Bench Press (Barbell)", [_set(60, 5)])]),
+            _workout("Abs (extra)", "2026-07-10", [("Ab Wheel", [_set(None, 12)])]),
+            _workout("Pull", "2026-07-09", [("Lat Pulldown (Cable)", [_set(50, 8)])]),
+        ]
+        monkeypatch.setattr(insights.service, "all_workouts", lambda: workouts)
+        result = insights.workouts_on("2026-07-10")
+        assert {w.title for w in result} == {"Push", "Abs (extra)"}
+
+    def test_rest_day_returns_none(self, monkeypatch):
+        monkeypatch.setattr(insights.service, "all_workouts", lambda: [])
+        assert insights.workouts_on("2026-07-10") is None
+
+
+class TestExerciseWithMeta:
+    def test_attaches_muscle_group_and_equipment_when_template_matches(self, monkeypatch):
+        workouts = [_workout("Push", "2026-07-10", [("Bench Press (Barbell)", [_set(60, 5)])])]
+        monkeypatch.setattr(insights.service, "all_workouts", lambda: workouts)
+        monkeypatch.setattr(insights.service, "exercise_template_by_title", lambda: {
+            "bench press (barbell)": {"primary_muscle_group": "chest", "equipment": "barbell"},
+        })
+        (item,) = insights.workout_feed()
+        (e,) = item.exercises
+        assert e.muscle_group == "chest"
+        assert e.equipment == "barbell"
+
+    def test_none_when_no_template_match(self, monkeypatch):
+        workouts = [_workout("Push", "2026-07-10", [("Some Custom Move", [_set(60, 5)])])]
+        monkeypatch.setattr(insights.service, "all_workouts", lambda: workouts)
+        monkeypatch.setattr(insights.service, "exercise_template_by_title", lambda: {})
+        (item,) = insights.workout_feed()
+        (e,) = item.exercises
+        assert e.muscle_group is None
+        assert e.equipment is None
+
+
 class TestRoutinesFull:
     def test_uses_routine_to_exercises(self, monkeypatch):
         routine = {"title": "Push", "exercises": [{
@@ -172,7 +233,45 @@ class TestRoutinesFull:
             "sets": [_set(rep_range={"start": 6, "end": 8})],
         }]}
         monkeypatch.setattr(insights.service, "tracked_routines", lambda: [routine])
+        monkeypatch.setattr(insights.service, "all_workouts", lambda: [])
+        monkeypatch.setattr(insights.service, "exercise_template_by_title", lambda: {})
         (r,) = insights.routines_full()
         assert r.title == "Push"
         assert r.exercises[0].exercise == "Bench Press (Barbell)"
         assert r.exercises[0].reps == "6-8"
+
+    def test_last_performed_and_sessions_last_30d(self, monkeypatch):
+        today_str = dt.date.today().isoformat()
+        old_str = (dt.date.today() - dt.timedelta(days=45)).isoformat()
+        routine = {"title": "Push", "exercises": []}
+        workouts = [
+            _workout("Push", today_str, []),
+            _workout("Push", old_str, []),
+            _workout("Pull", today_str, []),
+        ]
+        monkeypatch.setattr(insights.service, "tracked_routines", lambda: [routine])
+        monkeypatch.setattr(insights.service, "all_workouts", lambda: workouts)
+        monkeypatch.setattr(insights.service, "exercise_template_by_title", lambda: {})
+        (r,) = insights.routines_full()
+        assert r.last_performed == today_str
+        assert r.sessions_last_30d == 1  # the 45-day-old session falls outside the window
+
+    def test_never_performed_routine_has_none_last_performed(self, monkeypatch):
+        routine = {"title": "New abs", "exercises": []}
+        monkeypatch.setattr(insights.service, "tracked_routines", lambda: [routine])
+        monkeypatch.setattr(insights.service, "all_workouts", lambda: [])
+        monkeypatch.setattr(insights.service, "exercise_template_by_title", lambda: {})
+        (r,) = insights.routines_full()
+        assert r.last_performed is None
+        assert r.sessions_last_30d == 0
+
+    def test_sorted_most_recently_performed_first(self, monkeypatch):
+        today_str = dt.date.today().isoformat()
+        old_str = (dt.date.today() - dt.timedelta(days=10)).isoformat()
+        routines = [{"title": "Legs", "exercises": []}, {"title": "Push", "exercises": []}]
+        workouts = [_workout("Push", today_str, []), _workout("Legs", old_str, [])]
+        monkeypatch.setattr(insights.service, "tracked_routines", lambda: routines)
+        monkeypatch.setattr(insights.service, "all_workouts", lambda: workouts)
+        monkeypatch.setattr(insights.service, "exercise_template_by_title", lambda: {})
+        result = insights.routines_full()
+        assert [r.title for r in result] == ["Push", "Legs"]

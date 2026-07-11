@@ -31,12 +31,27 @@ from app.hevy.normalize import (
 _PR_WINDOW_DAYS = 30
 
 
+class ExerciseWithMeta(Exercise):
+    """Exercise plus Hevy exercise-template metadata. The Hevy API has no
+    exercise images — muscle_group/equipment is the closest available visual
+    stand-in (rendered as a badge in the UI). None when a template lookup
+    misses (e.g. a custom/renamed exercise)."""
+    muscle_group: str | None = None
+    equipment: str | None = None
+
+
 class WorkoutFeedItem(BaseModel):
     date: str
     title: str
     tracked: bool
     description: str | None
-    exercises: list[Exercise]
+    exercises: list[ExerciseWithMeta]
+
+
+class CalendarDay(BaseModel):
+    date: str
+    title: str
+    tracked: bool
 
 
 class ExerciseSummary(BaseModel):
@@ -70,7 +85,9 @@ class DashboardStats(BaseModel):
 
 class RoutineFull(BaseModel):
     title: str
-    exercises: list[Exercise]
+    exercises: list[ExerciseWithMeta]
+    last_performed: str | None
+    sessions_last_30d: int
 
 
 def _parse_date(date_str: str) -> datetime.date:
@@ -79,6 +96,19 @@ def _parse_date(date_str: str) -> datetime.date:
 
 def _week_start(d: datetime.date) -> datetime.date:
     return d - datetime.timedelta(days=d.weekday())  # Monday of that week
+
+
+def _with_muscle_meta(exercises: list[Exercise]) -> list[ExerciseWithMeta]:
+    templates = service.exercise_template_by_title()
+    out: list[ExerciseWithMeta] = []
+    for e in exercises:
+        t = templates.get(e.exercise.strip().lower())
+        out.append(ExerciseWithMeta(
+            **e.model_dump(),
+            muscle_group=t.get("primary_muscle_group") if t else None,
+            equipment=t.get("equipment") if t else None,
+        ))
+    return out
 
 
 def workout_feed(limit: int = 10, offset: int = 0) -> list[WorkoutFeedItem]:
@@ -90,9 +120,37 @@ def workout_feed(limit: int = 10, offset: int = 0) -> list[WorkoutFeedItem]:
             title=w.get("title") or "Workout",
             tracked=is_tracked(w),
             description=w.get("description") or None,
-            exercises=workout_to_exercises(w),
+            exercises=_with_muscle_meta(workout_to_exercises(w)),
         )
         for w in workouts
+    ]
+
+
+def calendar_days() -> list[CalendarDay]:
+    """One lightweight entry per logged workout across ALL history (no
+    exercises) — powers the Home calendar view."""
+    return [
+        CalendarDay(date=workout_date(w), title=w.get("title") or "Workout", tracked=is_tracked(w))
+        for w in service.all_workouts()
+    ]
+
+
+def workouts_on(date: str) -> list[WorkoutFeedItem] | None:
+    """All workouts logged on an exact date (usually one, occasionally more
+    on a double-session day). None if nothing was logged that day (caller
+    maps that to a 404)."""
+    matches = [w for w in service.all_workouts() if workout_date(w) == date]
+    if not matches:
+        return None
+    return [
+        WorkoutFeedItem(
+            date=workout_date(w),
+            title=w.get("title") or "Workout",
+            tracked=is_tracked(w),
+            description=w.get("description") or None,
+            exercises=_with_muscle_meta(workout_to_exercises(w)),
+        )
+        for w in matches
     ]
 
 
@@ -210,5 +268,28 @@ def dashboard_stats() -> DashboardStats:
 
 
 def routines_full() -> list[RoutineFull]:
-    return [RoutineFull(title=r.get("title") or "Routine", exercises=routine_to_exercises(r))
-            for r in service.tracked_routines()]
+    """The five tracked routines, sorted most-recently-performed first (never
+    performed sinks to the bottom), each with a 30-day session count and
+    muscle-group/equipment metadata per exercise."""
+    workouts = service.all_workouts()  # newest-first
+    today = datetime.date.today()
+    cutoff = today - datetime.timedelta(days=_PR_WINDOW_DAYS)
+
+    out: list[RoutineFull] = []
+    for r in service.tracked_routines():
+        title = r.get("title") or "Routine"
+        key = title.strip().lower()
+        matching = [w for w in workouts if (w.get("title") or "").strip().lower() == key]
+        last_performed = workout_date(matching[0]) if matching else None
+        sessions_last_30d = sum(
+            1 for w in matching
+            if workout_date(w) and _parse_date(workout_date(w)) >= cutoff
+        )
+        out.append(RoutineFull(
+            title=title,
+            exercises=_with_muscle_meta(routine_to_exercises(r)),
+            last_performed=last_performed,
+            sessions_last_30d=sessions_last_30d,
+        ))
+    out.sort(key=lambda r: r.last_performed or "", reverse=True)
+    return out

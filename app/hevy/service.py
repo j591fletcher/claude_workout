@@ -50,6 +50,23 @@ def _fetch_routines() -> list[dict]:
         return list(c.iter_routines())
 
 
+def _fetch_exercise_templates() -> list[dict]:
+    with HevyClient() as c:
+        return list(c.iter_exercise_templates())
+
+
+def _build_template_by_title() -> dict[str, dict]:
+    return {(t.get("title") or "").strip().lower(): t
+            for t in _cached("exercise_templates", _fetch_exercise_templates)}
+
+
+def exercise_template_by_title() -> dict[str, dict]:
+    """Lowercase exercise title -> Hevy exercise template (muscle group,
+    equipment). The Hevy API has no exercise images — this is the closest
+    available metadata for a visual stand-in in the UI."""
+    return _cached("exercise_templates_by_title", _build_template_by_title)
+
+
 def all_workouts() -> list[dict]:
     """Every logged workout, newest first (Hevy's order)."""
     return _cached("workouts", _fetch_workouts)
