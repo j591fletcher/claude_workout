@@ -15,12 +15,23 @@ export interface Exercise {
   notes: string | null;
 }
 
+export interface ExerciseWithMeta extends Exercise {
+  muscle_group: string | null;
+  equipment: string | null;
+}
+
 export interface WorkoutFeedItem {
   date: string;
   title: string;
   tracked: boolean;
   description: string | null;
-  exercises: Exercise[];
+  exercises: ExerciseWithMeta[];
+}
+
+export interface CalendarDay {
+  date: string;
+  title: string;
+  tracked: boolean;
 }
 
 export interface ExerciseSummary {
@@ -54,7 +65,9 @@ export interface DashboardStats {
 
 export interface RoutineFull {
   title: string;
-  exercises: Exercise[];
+  exercises: ExerciseWithMeta[];
+  last_performed: string | null;
+  sessions_last_30d: number;
 }
 
 export interface AskRequest {
@@ -116,6 +129,11 @@ export const api = {
     request<ExerciseHistoryPoint[]>(`/hevy/exercise-history?name=${encodeURIComponent(name)}`),
 
   stats: () => request<DashboardStats>("/hevy/stats"),
+
+  calendar: () => request<CalendarDay[]>("/hevy/calendar"),
+
+  workoutsByDate: (date: string) =>
+    request<WorkoutFeedItem[]>(`/hevy/workouts/by-date?date=${encodeURIComponent(date)}`),
 
   routinesFull: () => request<RoutineFull[]>("/hevy/routines/full"),
 
