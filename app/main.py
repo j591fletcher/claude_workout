@@ -2,12 +2,15 @@
 /chat (Module A). Bound to localhost/tailnet only — see docker-compose.yml."""
 
 from functools import lru_cache
+from pathlib import Path
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from app.contract import Exercise
+from app.hevy import insights
 from app.hevy import service as hevy
 from app.hevy.client import HevyError
 from app.retriever.query import Retriever
@@ -98,3 +101,41 @@ def hevy_routine_summaries() -> dict[str, list[str]]:
 def hevy_workout_summaries(limit: int = Query(default=5, ge=1, le=50)) -> dict[str, list[str]]:
     """Most recent logged sessions in the trainer's LIFT LOG format."""
     return {"workouts": hevy.recent_workout_summaries(limit)}
+
+
+@app.get("/hevy/workouts", response_model=list[insights.WorkoutFeedItem])
+def hevy_workouts(limit: int = Query(default=10, ge=1, le=50),
+                  offset: int = Query(default=0, ge=0)) -> list[insights.WorkoutFeedItem]:
+    """Structured, paginated workout feed — every logged session, newest first."""
+    return insights.workout_feed(limit, offset)
+
+
+@app.get("/hevy/exercises", response_model=list[insights.ExerciseSummary])
+def hevy_exercises() -> list[insights.ExerciseSummary]:
+    """Every exercise ever logged, most-trained first."""
+    return insights.exercise_names()
+
+
+@app.get("/hevy/exercise-history", response_model=list[insights.ExerciseHistoryPoint])
+def hevy_exercise_history(name: str) -> list[insights.ExerciseHistoryPoint]:
+    """Per-session progression series for one exercise, oldest first."""
+    history = insights.exercise_history(name)
+    if history is None:
+        raise HTTPException(status_code=404, detail=f"No logged history for exercise {name!r}")
+    return history
+
+
+@app.get("/hevy/stats", response_model=insights.DashboardStats)
+def hevy_stats() -> insights.DashboardStats:
+    return insights.dashboard_stats()
+
+
+@app.get("/hevy/routines/full", response_model=list[insights.RoutineFull])
+def hevy_routines_full() -> list[insights.RoutineFull]:
+    """The five tracked routines as structured Exercise rows."""
+    return insights.routines_full()
+
+
+_web_dist = Path(__file__).resolve().parent.parent / "web" / "dist"
+if _web_dist.is_dir():
+    app.mount("/", StaticFiles(directory=_web_dist, html=True), name="ui")

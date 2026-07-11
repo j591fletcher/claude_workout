@@ -24,7 +24,7 @@ def kg_to_lb(kg: float) -> float:
     return round(kg * KG_TO_LB * 2) / 2
 
 
-def _working_sets(exercise: dict) -> list[dict]:
+def working_sets(exercise: dict) -> list[dict]:
     """Non-warmup sets only — warmups never count toward working weights."""
     return [s for s in exercise.get("sets", []) if s.get("type") != "warmup"]
 
@@ -54,7 +54,7 @@ def workout_to_exercises(workout: dict) -> list[Exercise]:
     """One logged Hevy workout -> Data Contract entries (source="hevy")."""
     out: list[Exercise] = []
     for ex in workout.get("exercises", []):
-        sets = _working_sets(ex)
+        sets = working_sets(ex)
         if not sets:
             continue
         weights = [s["weight_kg"] for s in sets if s.get("weight_kg")]  # 0kg == bodyweight, not a working weight
@@ -75,7 +75,7 @@ def routine_to_exercises(routine: dict) -> list[Exercise]:
     """One Hevy routine template -> Data Contract entries (source="hevy")."""
     out: list[Exercise] = []
     for ex in routine.get("exercises", []):
-        sets = _working_sets(ex)
+        sets = working_sets(ex)
         if not sets:
             continue
         rep_bounds: list[int] = []
