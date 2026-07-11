@@ -6,6 +6,7 @@ Usage: python -m app.retriever.ingest [source_dir]
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import sys
@@ -37,12 +38,23 @@ def program_name_from_filename(pdf: Path) -> str:
     return re.sub(r"\s+", " ", name).strip()
 
 
+def _file_hash(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def ingest(source_dir: Path) -> dict[str, int]:
     settings = get_settings()
     chunks: list[chunking.Chunk] = []
     programs: list[str] = []
+    seen_hashes: dict[str, Path] = {}
 
     for xlsx in sorted(source_dir.glob("*.xlsx")):
+        h = _file_hash(xlsx)
+        if h in seen_hashes:
+            log.info("Skipping %s — identical content to %s (already ingested)",
+                      xlsx.name, seen_hashes[h].name)
+            continue
+        seen_hashes[h] = xlsx
         try:
             rows, warmup = parse_program_workbook(xlsx)
         except Exception:
@@ -55,6 +67,12 @@ def ingest(source_dir: Path) -> dict[str, int]:
         log.info("%s: %d exercise rows", xlsx.name, len(rows))
 
     for pdf in sorted(source_dir.glob("*.pdf")):
+        h = _file_hash(pdf)
+        if h in seen_hashes:
+            log.info("Skipping %s — identical content to %s (already ingested)",
+                      pdf.name, seen_hashes[h].name)
+            continue
+        seen_hashes[h] = pdf
         try:
             sections = parse_guidebook(pdf)
         except Exception:

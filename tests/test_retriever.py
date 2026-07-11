@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from app.retriever.chunk import Chunk, chunk_guide, chunk_program, row_to_record
 from app.retriever.extract import GuideSection, ProgramRow, unrange
-from app.retriever.ingest import program_name_from_filename
+from app.retriever.ingest import ingest, program_name_from_filename
 from app.retriever.query import Retriever, _format_context
 
 
@@ -135,3 +135,38 @@ def test_program_name_from_filename_differs_across_files():
     b = program_name_from_filename(
         Path("The_Bodybuilding_Transformation_System_-_Beginner_compressed.pdf"))
     assert a != b
+
+
+def test_ingest_skips_pdfs_with_identical_content(tmp_path, monkeypatch):
+    # two filenames, byte-identical content (mirrors the real duplicate pairs
+    # in pdfs/, e.g. "...Beginner.pdf" vs "...Beginner_compressed.pdf")
+    (tmp_path / "Guide.pdf").write_bytes(b"same content")
+    (tmp_path / "Guide (Z-Library).pdf").write_bytes(b"same content")
+
+    parsed: list[Path] = []
+
+    def _fake_parse_guidebook(pdf: Path):
+        parsed.append(pdf)
+        return [GuideSection(title="Intro", text="hello world", first_page=1)]
+
+    class _FakeEmbedder:
+        def embed(self, texts):
+            return [[0.0]] * len(texts)
+
+    class _FakeStore:
+        def __init__(self, _dir):
+            self.upserted = 0
+
+        def upsert(self, chunks, embeddings):
+            self.upserted += len(chunks)
+
+        def count(self):
+            return self.upserted
+
+    monkeypatch.setattr("app.retriever.ingest.parse_guidebook", _fake_parse_guidebook)
+    monkeypatch.setattr("app.retriever.ingest.get_embedder", lambda *a, **k: _FakeEmbedder())
+    monkeypatch.setattr("app.retriever.ingest.Store", _FakeStore)
+
+    ingest(tmp_path)
+
+    assert len(parsed) == 1  # only one of the two identical files was parsed
